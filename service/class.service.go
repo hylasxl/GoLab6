@@ -73,7 +73,6 @@ func GetClasses(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 // @Param id path int true "Class ID"
 // @Success 200 {object} models.Class
 // @Router /classes/{id} [get]
-
 func GetClassByID(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 	var class models.Class
 	id := c.Param("id")
@@ -95,7 +94,6 @@ func GetClassByID(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 			return
 		}
 	}
-
 	c.JSON(http.StatusOK, gin.H{"class": class})
 }
 
@@ -137,7 +135,6 @@ func UpdateClass(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 		return
 	}
 	redisClient.Del(ctx, "class:"+id, "classes")
-
 	c.JSON(http.StatusOK, gin.H{"class": class})
 }
 
@@ -160,6 +157,5 @@ func DeleteClass(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 		return
 	}
 	redisClient.Del(ctx, "class:"+id, "classes")
-
 	c.JSON(http.StatusOK, gin.H{"message": "Class deleted successfully"})
 }

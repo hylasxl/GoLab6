@@ -31,27 +31,21 @@ func CreateStudent(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
-
 	var class models.Class
 	if err := db.First(&class, student.ClassID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Class not found"})
 		return
 	}
-
 	var currentStudentCount int64
 	db.Model(&models.Student{}).Where("class_id = ?", student.ClassID).Count(&currentStudentCount)
 	if currentStudentCount >= int64(class.Capacity) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot add student: class is full"})
 		return
 	}
-
-	// Create student
 	if err := db.Create(&student).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create student"})
 		return
 	}
-
-	// Cache the student in Redis
 	if err := redisClient.Set(ctx, "student:"+strconv.Itoa(int(student.ID)), student, 10*time.Minute).Err(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cache student"})
 		return
@@ -72,7 +66,6 @@ func GetAllStudents(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 	// Check cache first
 	val, err := redisClient.Get(ctx, "students").Result()
 	if errors.Is(err, redis.Nil) {
-		// Cache miss, fetch from database
 		if err := db.Find(&students).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve students"})
 			return
@@ -82,7 +75,6 @@ func GetAllStudents(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving from cache"})
 		return
 	} else {
-		// Cache hit, unmarshal data
 		if err := json.Unmarshal([]byte(val), &students); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unmarshal students from cache"})
 			return
@@ -104,7 +96,6 @@ func GetStudentByID(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 	id := c.Param("id")
 	val, err := redisClient.Get(ctx, "student:"+id).Result()
 	if errors.Is(err, redis.Nil) {
-		// Cache miss, fetch from database
 		if err := db.First(&student, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Student not found"})
 			return
@@ -114,7 +105,6 @@ func GetStudentByID(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving from cache"})
 		return
 	} else {
-		// Cache hit, unmarshal data
 		if err := json.Unmarshal([]byte(val), &student); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unmarshal student from cache"})
 			return
@@ -136,27 +126,19 @@ func GetStudentByID(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 func UpdateStudent(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 	var student models.Student
 	id := c.Param("id")
-
-	// Validate that the student ID exists before binding the data
 	if err := db.First(&student, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Student not found"})
 		return
 	}
-
-	// Bind the new data to the existing student instance
 	if err := c.ShouldBindJSON(&student); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
-
 	if err := db.Save(&student).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update student"})
 		return
 	}
-
-	// Update cache
 	redisClient.Set(ctx, "student:"+strconv.Itoa(int(student.ID)), student, 10*time.Minute)
-
 	c.JSON(http.StatusOK, gin.H{"student": student})
 }
 
@@ -169,18 +151,14 @@ func UpdateStudent(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 func DeleteStudent(c *gin.Context, db *gorm.DB, redisClient *redis.Client) {
 	id := c.Param("id")
 	var student models.Student
-
 	if err := db.First(&student, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Student not found"})
 		return
 	}
-
 	if err := db.Delete(&student).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete student"})
 		return
 	}
-
 	redisClient.Del(ctx, "student:"+id)
-
 	c.JSON(http.StatusOK, gin.H{"message": "Student deleted successfully"})
 }
